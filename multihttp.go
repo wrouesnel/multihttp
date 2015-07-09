@@ -5,26 +5,27 @@ import (
 	"net/url"
 	"net/http"
 	"crypto/tls"
+	"time"
 )
 
 // Specifies an address (in URL format) and it's TLS cert file.
-type TLSAddress {
+type TLSAddress struct {
 	Address string
 	CertFile string
 	KeyFile string
 }
 
 func ParseAddress(address string) (string, string, error) {
-	urlp, err := url.Parse(addr)
+	urlp, err := url.Parse(address)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	
 	if urlp.Path != "" {	// file-likes
-		listener, err := net.Listen(urlp.Scheme, urlp.Path)
+		return urlp.Scheme, urlp.Path, nil
 	} else {	// actual network sockets
-		listener, err := net.Listen(urlp.Scheme, urlp.Host)
-	}
+		return urlp.Scheme, urlp.Host, nil
+	} 
 }
 
 // Non-blocking function to listen on multiple http sockets
@@ -40,17 +41,19 @@ func Listen(addresses []string, handler http.Handler) error {
 			return err
 		}
 		
-		listener = maybeKeepalive(listener)
+		listener = maybeKeepAlive(listener)
 		
 		go http.Serve(listener, nil)
 	}
+	
+	return nil
 }
 
 // Non-blocking function serve on multiple HTTPS sockets
 // Requires a list of certs
 func ListenTLS(addresses []TLSAddress, handler http.Handler) error {
 	for _, tlsAddressInfo := range addresses {
-		protocol, address, err := ParseAddress(tlsAddressInfo)
+		protocol, address, err := ParseAddress(tlsAddressInfo.Address)
 		if err != nil {
 			return err
 		}
@@ -65,20 +68,22 @@ func ListenTLS(addresses []TLSAddress, handler http.Handler) error {
 		config.NextProtos = []string{"http/1.1"}
 		
 		config.Certificates = make([]tls.Certificate, 1)
-		config.Certificates[0], err = tls.LoadX509KeyPair(tls.CertFile, tls.KeyFile)
+		config.Certificates[0], err = tls.LoadX509KeyPair(tlsAddressInfo.CertFile, tlsAddressInfo.KeyFile)
 		if err != nil {
 			return err
 		}
 		
 		listener = maybeKeepAlive(listener)
 		
-		tlsListener, err := tls.NewListener(listener, config)
+		tlsListener := tls.NewListener(listener, config)
 		if err != nil {
 			return err
 		}
 		
-		go http.Serve(tlsListener)
+		go http.Serve(tlsListener, nil)
 	}
+	
+	return nil
 }
 
 // Checks if a listener is a TCP and needs a keepalive handler
