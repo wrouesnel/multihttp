@@ -43,7 +43,7 @@ func Listen(addresses []string, handler http.Handler) error {
 		
 		listener = maybeKeepAlive(listener)
 		
-		go http.Serve(listener, nil)
+		go http.Serve(listener, handler)
 	}
 	
 	return nil
