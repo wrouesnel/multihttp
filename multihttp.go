@@ -109,3 +109,30 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	return tc, nil
 }
+
+// Returns a dialer which ignores the address string and connects to the
+// given socket always.
+func newDialer(addr string) (func (proto, addr string) (conn net.Conn, err error), error) {
+	realProtocol, realAddress, err := ParseAddress(addr)
+	if err != nil {
+		return nil, err
+	}
+	
+	return func (proto, addr string) (conn net.Conn, err error) {
+		return net.Dial(realProtocol, realAddress)
+	}, nil
+}
+
+// Initialize an HTTP client which connects to the provided socket address to
+// service requests. The hostname in requests is parsed as a header only.
+func NewClient(addr string) (*http.Client, error) {
+	dialer, err := newDialer(addr)
+	if err != nil {
+		return nil, err
+	}
+	
+	tr := &http.Transport{ Dial: dialer, }
+	client := &http.Client{Transport: tr}
+	
+	return client, nil
+}
