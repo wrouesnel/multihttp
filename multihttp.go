@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"crypto/tls"
 	"time"
+	//"fmt"
 )
 
 // Specifies an address (in URL format) and it's TLS cert file.
@@ -28,25 +29,30 @@ func ParseAddress(address string) (string, string, error) {
 	} 
 }
 
-// Non-blocking function to listen on multiple http sockets
-func Listen(addresses []string, handler http.Handler) error {
+// Non-blocking function to listen on multiple http sockets. Returns a list of
+// the created listener interfaces. Even in the case of errors, successfully
+// listening interfaces are returned to allow for clean up.
+func Listen(addresses []string, handler http.Handler) ([]net.Listener, error) {
+	var listeners []net.Listener
+	
 	for _, address := range addresses {		
 		protocol, address, err := ParseAddress(address)
 		if err != nil {
-			return err
+			return listeners, err
 		}
 		
 		listener, err := net.Listen(protocol, address)
 		if err != nil {
-			return err
+			return listeners, err
 		}
 		
+		// Append and start serving on listener
 		listener = maybeKeepAlive(listener)
-		
+		listeners = append(listeners, listener)
 		go http.Serve(listener, handler)
 	}
 	
-	return nil
+	return listeners, nil
 }
 
 // Non-blocking function serve on multiple HTTPS sockets
