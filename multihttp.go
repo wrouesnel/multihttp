@@ -1,6 +1,7 @@
 package multihttp
 
 import (
+	"os"
 	"net"
 	"net/url"
 	"net/http"
@@ -27,6 +28,18 @@ func ParseAddress(address string) (string, string, error) {
 	} else {	// actual network sockets
 		return urlp.Scheme, urlp.Host, nil
 	} 
+}
+
+// Runs clean up on a list of listeners, namely deleting any Unix socket files
+func CloseAndCleanUpListeners(listeners []net.Listener) {
+	for _, listener := range listeners {
+		listener.Close()
+		addr := listener.Addr()
+		switch addr.(type) {
+			case *net.UnixAddr:
+				os.Remove(addr.String())
+		}
+	}
 }
 
 // Non-blocking function to listen on multiple http sockets. Returns a list of
@@ -57,16 +70,18 @@ func Listen(addresses []string, handler http.Handler) ([]net.Listener, error) {
 
 // Non-blocking function serve on multiple HTTPS sockets
 // Requires a list of certs
-func ListenTLS(addresses []TLSAddress, handler http.Handler) error {
+func ListenTLS(addresses []TLSAddress, handler http.Handler) ([]net.Listener, error) {
+	var listeners []net.Listener
+	
 	for _, tlsAddressInfo := range addresses {
 		protocol, address, err := ParseAddress(tlsAddressInfo.Address)
 		if err != nil {
-			return err
+			return listeners, err
 		}
 		
 		listener, err := net.Listen(protocol, address)
 		if err != nil {
-			return err
+			return listeners, err
 		}
 		
 		config := &tls.Config{}
@@ -76,20 +91,22 @@ func ListenTLS(addresses []TLSAddress, handler http.Handler) error {
 		config.Certificates = make([]tls.Certificate, 1)
 		config.Certificates[0], err = tls.LoadX509KeyPair(tlsAddressInfo.CertFile, tlsAddressInfo.KeyFile)
 		if err != nil {
-			return err
+			return listeners, err
 		}
 		
 		listener = maybeKeepAlive(listener)
 		
 		tlsListener := tls.NewListener(listener, config)
 		if err != nil {
-			return err
+			return listeners, err
 		}
 		
+		// Append and start serving on listener
+		listeners = append(listeners, tlsListener)
 		go http.Serve(tlsListener, nil)
 	}
 	
-	return nil
+	return listeners, nil
 }
 
 // Checks if a listener is a TCP and needs a keepalive handler
