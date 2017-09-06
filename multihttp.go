@@ -1,121 +1,192 @@
 package multihttp
 
 import (
-	"os"
-	"net"
-	"net/url"
-	"net/http"
 	"crypto/tls"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
 	"time"
 	//"fmt"
+	"crypto/x509"
+	"errors"
+	"github.com/hashicorp/errwrap"
+	"io/ioutil"
 )
 
-// Specifies an address (in URL format) and it's TLS cert file.
-type TLSAddress struct {
+const (
+	certParam   string = "tlscert"
+	keyParam    string = "tlskey"
+	caCertParam string = "tlsclientca"
+
+	networkUnix string = "unix"
+	networkTCP  string = "tcp"
+)
+
+// nolint: golint
+var (
+	ErrErrorLoadingCertificate         = errors.New("could not load TLS certificate")
+	ErrErrorMissingTLSParameters       = errors.New("TLS modes require tlscert and tlskey params")
+	ErrErrorLoadingClientCACertificate = errors.New("error loading client CA certificate")
+	ErrUnknownListenScheme             = errors.New("unknown listen scheme")
+)
+
+// ListenAddressConfig is the parsed form of a multihttp address
+type ListenAddressConfig struct {
+	// NetworkType is the type of socket connection
+	NetworkType string
+	// Address is either the IP or socket path.
 	Address string
-	CertFile string
-	KeyFile string
+	// TLS config is the TLS parameters passed as part of the URL.
+	TLSConfig *tls.Config
 }
 
-func ParseAddress(address string) (string, string, error) {
+// ListenerError maps a listener to it's error channel.
+type ListenerError struct {
+	Listener net.Listener
+	Error    error
+}
+
+func getNetworkTypeAndAddressFromURL(u *url.URL) (string, string) {
+	var networkType, address string
+
+	switch u.Scheme {
+	case networkTCP:
+		networkType = u.Scheme
+		address = u.Host
+	case networkUnix:
+		networkType = networkUnix
+		address = u.Path
+	}
+
+	return networkType, address
+}
+
+// ParseAddress parses the given address string into an expanded configuration
+// struct. It is normally used by the Listen function.
+func ParseAddress(address string) (ListenAddressConfig, error) {
+	retAddr := ListenAddressConfig{}
+
 	urlp, err := url.Parse(address)
 	if err != nil {
-		return "", "", err
+		return retAddr, err
 	}
-	
-	if urlp.Path != "" {	// file-likes
-		return urlp.Scheme, urlp.Path, nil
-	} else {	// actual network sockets
-		return urlp.Scheme, urlp.Host, nil
-	} 
+
+	switch urlp.Scheme {
+	case networkTCP, networkUnix: // tcp
+		retAddr.NetworkType, retAddr.Address = getNetworkTypeAndAddressFromURL(urlp)
+	case "tcps", "unixs": // tcp with tls
+		urlp.Scheme = urlp.Scheme[:len(urlp.Scheme)-1]
+		retAddr.NetworkType, retAddr.Address = getNetworkTypeAndAddressFromURL(urlp)
+
+		tlsConfig := new(tls.Config)
+		tlsConfig.NextProtos = []string{"http/1.1"}
+
+		queryParams := urlp.Query()
+		if queryParams == nil {
+			return retAddr, ErrErrorMissingTLSParameters
+		}
+
+		// Get certificate and key path.
+		certPath := queryParams.Get(certParam)
+		keyPath := queryParams.Get(keyParam)
+
+		tlsConfig.Certificates = make([]tls.Certificate, 1)
+		tlsConfig.Certificates[0], err = tls.LoadX509KeyPair(certPath, keyPath)
+		if err != nil {
+			return retAddr, errwrap.Wrap(ErrErrorLoadingCertificate, err)
+		}
+
+		// Optional: client verification path
+		if caCertPath := queryParams.Get(caCertParam); caCertPath != "" {
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+			// Require acceptable clientCAs to be explicitely specified.
+			caCerts, caerr := ioutil.ReadFile(caCertPath)
+			if caerr != nil {
+				return retAddr, errwrap.Wrap(ErrErrorLoadingClientCACertificate, caerr)
+			}
+
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCerts)
+
+			tlsConfig.ClientCAs = caCertPool
+		}
+	default:
+		return retAddr, ErrUnknownListenScheme
+	}
+
+	return retAddr, nil
 }
 
-// Runs clean up on a list of listeners, namely deleting any Unix socket files
+// CloseAndCleanUpListeners runs clean up on a list of listeners,
+// namely deleting any Unix socket files
+// nolint: errcheck,gas
 func CloseAndCleanUpListeners(listeners []net.Listener) {
 	for _, listener := range listeners {
 		listener.Close()
 		addr := listener.Addr()
 		switch addr.(type) {
-			case *net.UnixAddr:
-				os.Remove(addr.String())
+		case *net.UnixAddr:
+			os.Remove(addr.String())
 		}
 	}
 }
 
-// Non-blocking function to listen on multiple http sockets. Returns a list of
-// the created listener interfaces. Even in the case of errors, successfully
-// listening interfaces are returned to allow for clean up.
-func Listen(addresses []string, handler http.Handler) ([]net.Listener, error) {
+// Listen is a non-blocking function to listen on multiple http sockets. Returns
+// a list of the created listener interfaces. Even in the case of errors,
+// successfully listening interfaces are returned to allow for clean up.
+func Listen(addresses []string, handler http.Handler) ([]net.Listener, <-chan *ListenerError, error) {
 	var listeners []net.Listener
-	
-	for _, address := range addresses {		
-		protocol, address, err := ParseAddress(address)
-		if err != nil {
-			return listeners, err
+
+	// Master error channel - all errors are propagated here. Length is set to
+	// listener length so go routines will clean up even if the channel is
+	// ignored.
+	errCh := make(chan *ListenerError, len(addresses))
+
+	for _, address := range addresses {
+		addressConfig, aerr := ParseAddress(address)
+		if aerr != nil {
+			return listeners, errCh, aerr
 		}
-		
-		listener, err := net.Listen(protocol, address)
-		if err != nil {
-			return listeners, err
+
+		var listener net.Listener
+		var lerr error
+
+		listener, lerr = net.Listen(addressConfig.NetworkType, addressConfig.Address)
+		// Errored making listener?
+		if lerr != nil {
+			return listeners, errCh, lerr
 		}
-		
+
+		// TLS connection?
+		if addressConfig.TLSConfig != nil {
+			listener = tls.NewListener(listener, addressConfig.TLSConfig)
+		}
+
 		// Append and start serving on listener
 		listener = maybeKeepAlive(listener)
 		listeners = append(listeners, listener)
-		go http.Serve(listener, handler)
+		go func(listener net.Listener) {
+			err := http.Serve(listener, handler)
+			// Return the listener and the error it returned.
+			errCh <- &ListenerError{
+				Listener: listener,
+				Error:    err,
+			}
+		}(listener)
 	}
-	
-	return listeners, nil
-}
 
-// Non-blocking function serve on multiple HTTPS sockets
-// Requires a list of certs
-func ListenTLS(addresses []TLSAddress, handler http.Handler) ([]net.Listener, error) {
-	var listeners []net.Listener
-	
-	for _, tlsAddressInfo := range addresses {
-		protocol, address, err := ParseAddress(tlsAddressInfo.Address)
-		if err != nil {
-			return listeners, err
-		}
-		
-		listener, err := net.Listen(protocol, address)
-		if err != nil {
-			return listeners, err
-		}
-		
-		config := &tls.Config{}
-		
-		config.NextProtos = []string{"http/1.1"}
-		
-		config.Certificates = make([]tls.Certificate, 1)
-		config.Certificates[0], err = tls.LoadX509KeyPair(tlsAddressInfo.CertFile, tlsAddressInfo.KeyFile)
-		if err != nil {
-			return listeners, err
-		}
-		
-		listener = maybeKeepAlive(listener)
-		
-		tlsListener := tls.NewListener(listener, config)
-		if err != nil {
-			return listeners, err
-		}
-		
-		// Append and start serving on listener
-		listeners = append(listeners, tlsListener)
-		go http.Serve(tlsListener, nil)
-	}
-	
-	return listeners, nil
+	return listeners, errCh, nil
 }
 
 // Checks if a listener is a TCP and needs a keepalive handler
 func maybeKeepAlive(ln net.Listener) net.Listener {
 	if o, ok := ln.(*net.TCPListener); ok {
-		return tcpKeepAliveListener{o}
+		return &tcpKeepAliveListener{o}
 	}
 	return ln
-} 
+}
 
 // Irritatingly the tcpKeepAliveListener is not public, so we need to recreate it.
 // tcpKeepAliveListener sets TCP keep-alive timeouts on accepted connections.
@@ -123,39 +194,45 @@ type tcpKeepAliveListener struct {
 	*net.TCPListener
 }
 
-func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
-		return
+		return nil, err
 	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(3 * time.Minute)
+	err = tc.SetKeepAlive(true)
+	if err != nil {
+		return nil, err
+	}
+	err = tc.SetKeepAlivePeriod(3 * time.Minute)
+	if err != nil {
+		return nil, err
+	}
 	return tc, nil
 }
 
 // Returns a dialer which ignores the address string and connects to the
 // given socket always.
-func newDialer(addr string) (func (proto, addr string) (conn net.Conn, err error), error) {
-	realProtocol, realAddress, err := ParseAddress(addr)
-	if err != nil {
-		return nil, err
-	}
-	
-	return func (proto, addr string) (conn net.Conn, err error) {
-		return net.Dial(realProtocol, realAddress)
-	}, nil
-}
-
-// Initialize an HTTP client which connects to the provided socket address to
-// service requests. The hostname in requests is parsed as a header only.
-func NewClient(addr string) (*http.Client, error) {
-	dialer, err := newDialer(addr)
-	if err != nil {
-		return nil, err
-	}
-	
-	tr := &http.Transport{ Dial: dialer, }
-	client := &http.Client{Transport: tr}
-	
-	return client, nil
-}
+//func newDialer(addr string) (func (proto, addr string) (conn net.Conn, err error), error) {
+//	realProtocol, realAddress, err := ParseAddress(addr)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return func (proto, addr string) (conn net.Conn, err error) {
+//		return net.Dial(realProtocol, realAddress)
+//	}, nil
+//}
+//
+//// Initialize an HTTP client which connects to the provided socket address to
+//// service requests. The hostname in requests is parsed as a header only.
+//func NewClient(addr string) (*http.Client, error) {
+//	dialer, err := newDialer(addr)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	tr := &http.Transport{ Dial: dialer, }
+//	client := &http.Client{Transport: tr}
+//
+//	return client, nil
+//}
