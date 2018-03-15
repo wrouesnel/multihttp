@@ -204,12 +204,15 @@ func (ctx *Context) ModifyImport(imp *pkgspec.Pkg, mod Modify, mops ...ModifyOpt
 			item.Pkg.HasVersion = true
 			item.Pkg.Version = imp.Version
 		}
+		item.Pkg.HasOrigin = imp.HasOrigin
 		item.Pkg.Origin = path.Join(imp.PathOrigin(), strings.TrimPrefix(item.Pkg.Path, imp.Path))
 		err = ctx.modify(item.Pkg, mod, mops)
 		if err != nil {
 			return err
 		}
 	}
+	// cache for later use
+	ctx.TreeImport = append(ctx.TreeImport, imp)
 	return nil
 }
 
@@ -324,7 +327,7 @@ func (ctx *Context) modify(ps *pkgspec.Pkg, mod Modify, mops []ModifyOption) err
 	}
 }
 
-func (ctx *Context) getIngoreFiles(src string) (ignoreFile, imports []string, err error) {
+func (ctx *Context) getIgnoreFiles(src string) (ignoreFile, imports []string, err error) {
 	srcDir, err := os.Open(src)
 	if err != nil {
 		return nil, nil, err
@@ -376,7 +379,7 @@ func (ctx *Context) modifyAdd(pkg *Package, uncommitted bool) error {
 		ignoreFile = cpkg.ignoreFile
 	} else {
 		var err error
-		ignoreFile, _, err = ctx.getIngoreFiles(src)
+		ignoreFile, _, err = ctx.getIgnoreFiles(src)
 		if err != nil {
 			return err
 		}
@@ -535,7 +538,7 @@ func (ctx *Context) modifyFetch(pkg *Package, uncommitted, hasVersion bool, vers
 	return nil
 }
 
-// Check returns any conflicts when more then one package can be moved into
+// Check returns any conflicts when more than one package can be moved into
 // the same path.
 func (ctx *Context) Check() []*Conflict {
 	// Find duplicate packages that have been marked for moving.

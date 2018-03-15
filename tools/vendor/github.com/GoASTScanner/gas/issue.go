@@ -11,37 +11,44 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package core
+
+package gas
 
 import (
 	"encoding/json"
 	"fmt"
 	"go/ast"
 	"os"
+	"strconv"
 )
 
 // Score type used by severity and confidence values
 type Score int
 
 const (
-	Low    Score = iota // Low value
-	Medium              // Medium value
-	High                // High value
+	// Low severity or confidence
+	Low Score = iota
+	// Medium severity or confidence
+	Medium
+	// High severity or confidence
+	High
 )
 
-// An Issue is returnd by a GAS rule if it discovers an issue with the scanned code.
+// Issue is returnd by a GAS rule if it discovers an issue with the scanned code.
 type Issue struct {
 	Severity   Score  `json:"severity"`   // issue severity (how problematic it is)
 	Confidence Score  `json:"confidence"` // issue confidence (how sure we are we found it)
+	RuleID     string `json:"rule_id"`    // Human readable explanation
 	What       string `json:"details"`    // Human readable explanation
 	File       string `json:"file"`       // File name we found it in
 	Code       string `json:"code"`       // Impacted code line
-	Line       int    `json:"line"`       // Line number in file
+	Line       string `json:"line"`       // Line number in file
 }
 
 // MetaData is embedded in all GAS rules. The Severity, Confidence and What message
 // will be passed tbhrough to reported issues.
 type MetaData struct {
+	ID         string
 	Severity   Score
 	Confidence Score
 	What       string
@@ -71,7 +78,7 @@ func codeSnippet(file *os.File, start int64, end int64, n ast.Node) (string, err
 	}
 
 	size := (int)(end - start) // Go bug, os.File.Read should return int64 ...
-	file.Seek(start, 0)
+	file.Seek(start, 0)        // #nosec
 
 	buf := make([]byte, size)
 	if nread, err := file.Read(buf); err != nil || nread != size {
@@ -81,12 +88,18 @@ func codeSnippet(file *os.File, start int64, end int64, n ast.Node) (string, err
 }
 
 // NewIssue creates a new Issue
-func NewIssue(ctx *Context, node ast.Node, desc string, severity Score, confidence Score) *Issue {
+func NewIssue(ctx *Context, node ast.Node, ruleID, desc string, severity Score, confidence Score) *Issue {
 	var code string
 	fobj := ctx.FileSet.File(node.Pos())
 	name := fobj.Name()
-	line := fobj.Line(node.Pos())
 
+	start, end := fobj.Line(node.Pos()), fobj.Line(node.End())
+	line := strconv.Itoa(start)
+	if start != end {
+		line = fmt.Sprintf("%d-%d", start, end)
+	}
+
+	// #nosec
 	if file, err := os.Open(fobj.Name()); err == nil {
 		defer file.Close()
 		s := (int64)(fobj.Position(node.Pos()).Offset) // Go bug, should be int64
@@ -100,6 +113,7 @@ func NewIssue(ctx *Context, node ast.Node, desc string, severity Score, confiden
 	return &Issue{
 		File:       name,
 		Line:       line,
+		RuleID:     ruleID,
 		What:       desc,
 		Confidence: confidence,
 		Severity:   severity,

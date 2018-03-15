@@ -1,4 +1,4 @@
-package output
+package printer
 
 import (
 	"bytes"
@@ -10,13 +10,18 @@ import (
 	"github.com/mibk/dupl/syntax"
 )
 
-type HTMLPrinter struct {
+type html struct {
 	iota int
-	*TextPrinter
+	w    io.Writer
+	ReadFile
 }
 
-func NewHTMLPrinter(w io.Writer, fr FileReader) *HTMLPrinter {
-	fmt.Fprint(w, `<!DOCTYPE html>
+func NewHTML(w io.Writer, fread ReadFile) Printer {
+	return &html{w: w, ReadFile: fread}
+}
+
+func (p *html) PrintHeader() error {
+	_, err := fmt.Fprint(p.w, `<!DOCTYPE html>
 <meta charset="utf-8"/>
 <title>Duplicates</title>
 <style>
@@ -27,14 +32,12 @@ func NewHTMLPrinter(w io.Writer, fr FileReader) *HTMLPrinter {
 	}
 </style>
 `)
-	return &HTMLPrinter{
-		TextPrinter: NewTextPrinter(w, fr),
-	}
+	return err
 }
 
-func (p *HTMLPrinter) Print(dups [][]*syntax.Node) error {
+func (p *html) PrintClones(dups [][]*syntax.Node) error {
 	p.iota++
-	fmt.Fprintf(p.writer, "<h1>#%d found %d clones</h1>\n", p.iota, len(dups))
+	fmt.Fprintf(p.w, "<h1>#%d found %d clones</h1>\n", p.iota, len(dups))
 
 	clones := make([]clone, len(dups))
 	for i, dup := range dups {
@@ -45,7 +48,7 @@ func (p *HTMLPrinter) Print(dups [][]*syntax.Node) error {
 		nstart := dup[0]
 		nend := dup[cnt-1]
 
-		file, err := p.freader.ReadFile(nstart.Filename)
+		file, err := p.ReadFile(nstart.Filename)
 		if err != nil {
 			return err
 		}
@@ -60,12 +63,12 @@ func (p *HTMLPrinter) Print(dups [][]*syntax.Node) error {
 
 	sort.Sort(byNameAndLine(clones))
 	for _, cl := range clones {
-		fmt.Fprintf(p.writer, "<h2>%s:%d</h2>\n<pre>%s</pre>\n", cl.filename, cl.lineStart, cl.fragment)
+		fmt.Fprintf(p.w, "<h2>%s:%d</h2>\n<pre>%s</pre>\n", cl.filename, cl.lineStart, cl.fragment)
 	}
 	return nil
 }
 
-func (*HTMLPrinter) Finish() {}
+func (*html) PrintFooter() error { return nil }
 
 func findLineBeg(file []byte, index int) int {
 	for i := index; i >= 0; i-- {

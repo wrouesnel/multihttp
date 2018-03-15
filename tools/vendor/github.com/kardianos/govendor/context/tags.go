@@ -11,8 +11,8 @@ import (
 
 // Build tags come in the format "tagA tagB,tagC" -> "taga OR (tagB AND tagC)"
 // File tags compose with this as "ftag1 AND ftag2 AND (<build-tags>)".
-// However in govendor all questions are reversed. Rather then asking
-// "What should be built?" we ask "What should be ingored?".
+// However in govendor all questions are reversed. Rather than asking
+// "What should be built?" we ask "What should be ignored?".
 
 type logical struct {
 	and bool
@@ -31,12 +31,18 @@ func (lt logicalTag) match(lt2 logicalTag) bool {
 	if lt.not || lt2.not {
 		return false
 	}
-	return lt.tag == lt2.tag
+	if lt.tag == lt2.tag {
+		return true
+	}
 
 	if lt.not == lt2.not {
 		return lt.tag == lt2.tag
 	}
 	return lt.tag != lt2.tag
+}
+
+func (lt logicalTag) conflict(lt2 logicalTag) bool {
+	return lt.tag == lt2.tag && lt.not != lt2.not
 }
 
 func (lt logicalTag) String() string {
@@ -66,7 +72,7 @@ func (l logical) empty() bool {
 }
 
 func (l logical) ignored(ignoreTags []logicalTag) bool {
-	// A logical is ingored if ANY AND conditions match or ALL OR conditions match.
+	// A logical is ignored if ANY AND conditions match or ALL OR conditions match.
 	if len(ignoreTags) == 0 {
 		return false
 	}
@@ -120,6 +126,20 @@ func (l logical) ignored(ignoreTags []logicalTag) bool {
 	return hasOne
 }
 
+func (l logical) conflict(lt logicalTag) bool {
+	for _, t := range l.tag {
+		if t.conflict(lt) {
+			return true
+		}
+	}
+	for _, s := range l.sub {
+		if s.conflict(lt) {
+			return true
+		}
+	}
+	return false
+}
+
 func (l logical) String() string {
 	buf := bytes.Buffer{}
 	if l.and {
@@ -169,6 +189,13 @@ func (ts *TagSet) IgnoreItem(ignoreList ...string) bool {
 	if ts.ignore {
 		return true
 	}
+	for _, fileTag := range ts.root.tag {
+		for _, buildTag := range ts.root.sub {
+			if buildTag.conflict(fileTag) {
+				return true
+			}
+		}
+	}
 	ts.root.and = true
 	ignoreTags := make([]logicalTag, len(ignoreList))
 	for i := 0; i < len(ignoreList); i++ {
@@ -182,7 +209,7 @@ func (ts *TagSet) AddFileTag(tag string) {
 		return
 	}
 	ts.root.and = true
-	ts.root.tag = append(ts.root.tag, logicalTag{tag: tag})
+	ts.root.tag = append(ts.root.tag, newLogicalTag(tag))
 }
 func (ts *TagSet) AddBuildTags(tags string) {
 	if ts == nil {

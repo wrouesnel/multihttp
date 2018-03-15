@@ -17,16 +17,16 @@ func SlashToFilepath(path string) string {
 	}
 	return strings.Replace(path, "/", string(filepath.Separator), -1)
 }
+
 func SlashToImportPath(path string) string {
 	return strings.Replace(path, `\`, "/", -1)
 }
 
 func FileHasPrefix(s, prefix string) bool {
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		s = strings.ToLower(s)
-		prefix = strings.ToLower(prefix)
+	if len(prefix) > len(s) {
+		return false
 	}
-	return strings.HasPrefix(s, prefix)
+	return caseInsensitiveEq(s[:len(prefix)], prefix)
 }
 
 func FileTrimPrefix(s, prefix string) string {
@@ -37,11 +37,10 @@ func FileTrimPrefix(s, prefix string) string {
 }
 
 func FileHasSuffix(s, suffix string) bool {
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		s = strings.ToLower(s)
-		suffix = strings.ToLower(suffix)
+	if len(suffix) > len(s) {
+		return false
 	}
-	return strings.HasSuffix(s, suffix)
+	return caseInsensitiveEq(s[len(s)-len(suffix):], suffix)
 }
 
 func FileTrimSuffix(s, suffix string) string {
@@ -96,10 +95,6 @@ func FileStringEquals(s1, s2 string) bool {
 	if len(s2) == 0 {
 		return len(s1) == 0
 	}
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		s1 = strings.ToLower(s1)
-		s2 = strings.ToLower(s2)
-	}
 	r1End := s1[len(s1)-1]
 	r2End := s2[len(s2)-1]
 	if r1End == '/' || r1End == '\\' {
@@ -108,7 +103,33 @@ func FileStringEquals(s1, s2 string) bool {
 	if r2End == '/' || r2End == '\\' {
 		s2 = s2[:len(s2)-1]
 	}
+	return caseInsensitiveEq(s1, s2)
+}
+
+func caseInsensitiveEq(s1, s2 string) bool {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		return strings.EqualFold(s1, s2)
+	}
 	return s1 == s2
+}
+
+// ParseGoEnvLine parses a "go env" line into a key value pair.
+func ParseGoEnvLine(line string) (key, value string, ok bool) {
+	// Remove any leading "set " found on windows.
+	// Match the name to the env var + "=".
+	// Remove any quotes.
+	// Return result.
+	line = strings.TrimPrefix(line, "set ")
+	parts := strings.SplitN(line, "=", 2)
+	if len(parts) < 2 {
+		return "", "", false
+	}
+
+	un, err := strconv.Unquote(parts[1])
+	if err != nil {
+		return parts[0], parts[1], true
+	}
+	return parts[0], un, true
 }
 
 // GoEnv parses a "go env" line and checks for a specific

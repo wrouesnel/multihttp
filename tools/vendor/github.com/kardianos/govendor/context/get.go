@@ -6,6 +6,7 @@ package context
 
 import (
 	"fmt"
+	"go/build"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,11 +17,7 @@ import (
 
 func Get(logger io.Writer, pkgspecName string, insecure bool) (*pkgspec.Pkg, error) {
 	// Get the GOPATHs.
-	all := os.Getenv("GOPATH")
-	if len(all) == 0 {
-		return nil, ErrMissingGOPATH
-	}
-	gopathList := filepath.SplitList(all)
+	gopathList := filepath.SplitList(build.Default.GOPATH)
 	gopath := gopathList[0]
 
 	cwd, err := os.Getwd()

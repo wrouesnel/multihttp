@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package gas
 
 import "go/ast"
 
 func resolveIdent(n *ast.Ident, c *Context) bool {
+
 	if n.Obj == nil || n.Obj.Kind != ast.Var {
 		return true
 	}

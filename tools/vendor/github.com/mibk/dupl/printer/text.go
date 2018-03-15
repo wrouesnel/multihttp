@@ -1,4 +1,4 @@
-package output
+package printer
 
 import (
 	"fmt"
@@ -8,43 +8,38 @@ import (
 	"github.com/mibk/dupl/syntax"
 )
 
-type FileReader interface {
-	ReadFile(filename string) ([]byte, error)
+type text struct {
+	cnt int
+	w   io.Writer
+	ReadFile
 }
 
-type Printer interface {
-	Print(dups [][]*syntax.Node) error
-	Finish()
+func NewText(w io.Writer, fread ReadFile) Printer {
+	return &text{w: w, ReadFile: fread}
 }
 
-type TextPrinter struct {
-	writer  io.Writer
-	freader FileReader
-	cnt     int
-}
+func (p *text) PrintHeader() error { return nil }
 
-func NewTextPrinter(w io.Writer, fr FileReader) *TextPrinter {
-	return &TextPrinter{
-		writer:  w,
-		freader: fr,
-	}
-}
-
-func (p *TextPrinter) Print(dups [][]*syntax.Node) error {
+func (p *text) PrintClones(dups [][]*syntax.Node) error {
 	p.cnt++
-	fmt.Fprintf(p.writer, "found %d clones:\n", len(dups))
-	clones, err := p.prepareClonesInfo(dups)
+	fmt.Fprintf(p.w, "found %d clones:\n", len(dups))
+	clones, err := prepareClonesInfo(p.ReadFile, dups)
 	if err != nil {
 		return err
 	}
 	sort.Sort(byNameAndLine(clones))
 	for _, cl := range clones {
-		fmt.Fprintf(p.writer, "  %s:%d,%d\n", cl.filename, cl.lineStart, cl.lineEnd)
+		fmt.Fprintf(p.w, "  %s:%d,%d\n", cl.filename, cl.lineStart, cl.lineEnd)
 	}
 	return nil
 }
 
-func (p *TextPrinter) prepareClonesInfo(dups [][]*syntax.Node) ([]clone, error) {
+func (p *text) PrintFooter() error {
+	_, err := fmt.Fprintf(p.w, "\nFound total %d clone groups.\n", p.cnt)
+	return err
+}
+
+func prepareClonesInfo(fread ReadFile, dups [][]*syntax.Node) ([]clone, error) {
 	clones := make([]clone, len(dups))
 	for i, dup := range dups {
 		cnt := len(dup)
@@ -54,7 +49,7 @@ func (p *TextPrinter) prepareClonesInfo(dups [][]*syntax.Node) ([]clone, error) 
 		nstart := dup[0]
 		nend := dup[cnt-1]
 
-		file, err := p.freader.ReadFile(nstart.Filename)
+		file, err := fread(nstart.Filename)
 		if err != nil {
 			return nil, err
 		}
@@ -64,10 +59,6 @@ func (p *TextPrinter) prepareClonesInfo(dups [][]*syntax.Node) ([]clone, error) 
 		clones[i] = cl
 	}
 	return clones, nil
-}
-
-func (p *TextPrinter) Finish() {
-	fmt.Fprintf(p.writer, "\nFound total %d clone groups.\n", p.cnt)
 }
 
 func blockLines(file []byte, from, to int) (int, int) {
