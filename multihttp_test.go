@@ -2,11 +2,12 @@ package multihttp
 
 import (
 	"fmt"
-	. "gopkg.in/check.v1"
 	"net"
 	"net/http"
 	"os"
 	"testing"
+
+	. "gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner.
@@ -42,6 +43,7 @@ func (s *MultiHTTPSuite) TestParseAddress(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(addrConfig.NetworkType, Equals, "tcp")
 	c.Assert(addrConfig.Address, Equals, "0.0.0.0:443")
+	c.Assert(addrConfig.TLSConfig, NotNil)
 
 	addrConfig, err = ParseAddress("fake://0.0.0.0:8080")
 	c.Assert(err, Not(IsNil))
