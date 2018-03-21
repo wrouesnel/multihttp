@@ -1,15 +1,10 @@
 language: go
 go:
-- '1.7'
-- '1.8'
-- '1.9'
 - '1.10'
-- master
-allow_failures:
-- go: master
 cache:
   directories:
   - tools/bin
+  - tools/pkg
 script:
 - go run -v mage.go all
 - tools/bin/goveralls -coverprofile=cover.out -service=travis-ci

@@ -282,8 +282,9 @@ func getCoreTools() []string {
 		"github.com/kardianos/govendor",
 		"github.com/wadey/gocovmerge",
 		"github.com/mattn/goveralls",
-		"github.com/tmthrgd/go-bindata/go-bindata",
-		"github.com/GoASTScanner/gas/cmd/gas", // workaround for Ast scanner
+		"github.com/tmthrgd/go-bindata",
+		"github.com/dnephin/govet@fork", // workaround for govet
+		"honnef.co/go/tools/lint@errcheck", // workaround for honnef.co
 		"github.com/alecthomas/gometalinter",
 	}
 	return staticTools
@@ -359,7 +360,10 @@ func Tools() (err error) {
 
 	toolBuild := func(toolType string, tools ...string) error {
 		toolTargets := []interface{}{}
-		for _, toolImport := range tools {
+		for _, toolImportRaw := range tools {
+			splitPort := strings.Split(toolImportRaw, "@")
+			toolImport := splitPort[0]
+
 			toolParts := strings.Split(toolImport, "/")
 			toolBin := path.Join(toolsBinDir, toolParts[len(toolParts)-1])
 			Log("Check for changes:", toolBin, toolsVendorDir)
@@ -427,7 +431,16 @@ func UpdateTools() error {
 
 	// govendor fetch core tools
 	for _, toolImport := range append(getCoreTools(), getMetalinters()...) {
-		if err := sh.RunV("govendor", "fetch", "-v", toolImport + "/..."); err != nil {
+		splitPort := strings.Split(toolImport, "@")
+		extra := ""
+		if len(splitPort) == 2 {
+			extra = "@" + splitPort[1]
+		}
+
+		if err := sh.RunV("govendor", "fetch", "-v", toolImport + "/..." + extra); err != nil {
+			return err
+		}
+		if err := sh.RunV("govendor", "fetch", "-v", toolImport); err != nil {
 			return err
 		}
 	}

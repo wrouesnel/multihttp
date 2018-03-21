@@ -63,6 +63,12 @@
 			"revisionTime": "2017-02-16T02:04:25Z"
 		},
 		{
+			"checksumSHA1": "rDM1YOCSZE4BLxZoBJV56/VmZSo=",
+			"path": "github.com/alexkohler/nakedret",
+			"revision": "c0e305a4f690fed163d47628bcc06a6d5655bf92",
+			"revisionTime": "2017-11-06T22:32:15Z"
+		},
+		{
 			"checksumSHA1": "z6mKUmWeXRT0k+xrXxA5CLKOWiE=",
 			"path": "github.com/client9/misspell",
 			"revision": "1d9ab7749ee27131547244ff2f9953d235b591fb",
@@ -79,6 +85,30 @@
 			"path": "github.com/dchest/safefile",
 			"revision": "855e8d98f1852d48dde521e0522408d1fe7e836a",
 			"revisionTime": "2015-10-22T10:31:44Z"
+		},
+		{
+			"checksumSHA1": "aLXmB5i+PFfM/dVqfHxoB3a8v/g=",
+			"path": "github.com/dnephin/govet",
+			"revision": "4a96d43e39d340b63daa8bc5576985aa599885f6",
+			"revisionTime": "2017-10-12T18:51:37Z",
+			"version": "fork",
+			"versionExact": "fork"
+		},
+		{
+			"checksumSHA1": "Ba6cj2wCpDZcjE0kZ4Q32PJW4fg=",
+			"path": "github.com/dnephin/govet/internal/cfg",
+			"revision": "4a96d43e39d340b63daa8bc5576985aa599885f6",
+			"revisionTime": "2017-10-12T18:51:37Z",
+			"version": "fork",
+			"versionExact": "fork"
+		},
+		{
+			"checksumSHA1": "ttQiZmni3k7Tbfi4/CX3JG6NjAw=",
+			"path": "github.com/dnephin/govet/internal/whitelist",
+			"revision": "4a96d43e39d340b63daa8bc5576985aa599885f6",
+			"revisionTime": "2017-10-12T18:51:37Z",
+			"version": "fork",
+			"versionExact": "fork"
 		},
 		{
 			"checksumSHA1": "+U50xksZS8g53vruOP7px7cLilE=",
@@ -217,6 +247,12 @@
 			"path": "github.com/mattn/goveralls",
 			"revision": "1c14a4061c1cb86f0310cc0d4c0b5bc743879bc5",
 			"revisionTime": "2018-03-19T02:19:29Z"
+		},
+		{
+			"checksumSHA1": "dk0ehYSmMaGLWFQPND3cVgk744I=",
+			"path": "github.com/mdempsky/maligned",
+			"revision": "08c8e9db1bce03f1af283686c0943fcb75f0109e",
+			"revisionTime": "2016-08-25T09:47:39Z"
 		},
 		{
 			"checksumSHA1": "90pFJb64MwgYvN5AmPVaWl87ZyU=",
@@ -423,6 +459,24 @@
 			"revisionTime": "2017-12-21T19:52:08Z"
 		},
 		{
+			"checksumSHA1": "9YtB2Xi9YK/scfhUOjgxmjoaqUw=",
+			"path": "github.com/tmthrgd/go-bindata",
+			"revision": "40f4993ede74f673cfe96bed75ef8513a389a00a",
+			"revisionTime": "2017-11-30T10:15:03Z"
+		},
+		{
+			"checksumSHA1": "JpZW4NtMSnXZ7T7rug7JEYgeHKc=",
+			"path": "github.com/tmthrgd/go-bindata/go-bindata",
+			"revision": "40f4993ede74f673cfe96bed75ef8513a389a00a",
+			"revisionTime": "2017-11-30T10:15:03Z"
+		},
+		{
+			"checksumSHA1": "/XExakIFq9PUOjkjlMpe7T/Ps+8=",
+			"path": "github.com/tmthrgd/go-bindata/internal/identifier",
+			"revision": "40f4993ede74f673cfe96bed75ef8513a389a00a",
+			"revisionTime": "2017-11-30T10:15:03Z"
+		},
+		{
 			"checksumSHA1": "fZaFaXc4iKu9PXl8xrmK3RrZpIY=",
 			"path": "github.com/tsenart/deadcode",
 			"revision": "210d2dc333e90c7e3eedf4f2242507a8e83ed4ab",
@@ -519,6 +573,12 @@
 			"revisionTime": "2017-03-22T18:59:57Z"
 		},
 		{
+			"checksumSHA1": "d/01nwqyc48GkZ3eqEOMszzTwBE=",
+			"path": "golang.org/x/tools/go/callgraph/rta",
+			"revision": "2226533658007779ffd629b495a088530c84dc50",
+			"revisionTime": "2017-11-14T23:37:00Z"
+		},
+		{
 			"checksumSHA1": "rSUfKH182TkCgMhJVsr84a19cbo=",
 			"path": "golang.org/x/tools/go/gcexportdata",
 			"revision": "2a5864fcfb595b4ee9a7607f1beb25778cf64c6e",
@@ -603,6 +663,12 @@
 			"revisionTime": "2018-01-10T22:45:03Z"
 		},
 		{
+			"checksumSHA1": "84jyAI0Uv1PQ3fN3Ufi0T7/IpOw=",
+			"path": "honnef.co/go/tools/cmd/megacheck",
+			"revision": "8ed405e85c65fb38745a8eafe01ee9590523f172",
+			"revisionTime": "2018-01-10T22:45:03Z"
+		},
+		{
 			"checksumSHA1": "dP4Ft0yiZSTZOzzNho1Gg5b7o2w=",
 			"path": "honnef.co/go/tools/cmd/staticcheck",
 			"revision": "8ed405e85c65fb38745a8eafe01ee9590523f172",
@@ -633,16 +699,20 @@
 			"revisionTime": "2017-05-22T19:09:05Z"
 		},
 		{
-			"checksumSHA1": "ALFoG0EDHSENgXXKVakOwdwXUSU=",
+			"checksumSHA1": "j0UZiP6RODW2qnhc0Ap0n+uGJ9g=",
 			"path": "honnef.co/go/tools/lint",
-			"revision": "e94d1c1a34c6b61d8d06c7793b8f22cd0dfcdd90",
-			"revisionTime": "2017-05-22T19:09:05Z"
+			"revision": "aab6080f78fc45eae3fd679d00d7f1cb23afc260",
+			"revisionTime": "2017-02-22T05:48:27Z",
+			"version": "errcheck",
+			"versionExact": "errcheck"
 		},
 		{
-			"checksumSHA1": "jevSfIBFuPrD5LPY/jF8EQWUDa8=",
+			"checksumSHA1": "tqzsVMCVFBSNsqiL3V4F+fpPXw4=",
 			"path": "honnef.co/go/tools/lint/lintutil",
-			"revision": "e94d1c1a34c6b61d8d06c7793b8f22cd0dfcdd90",
-			"revisionTime": "2017-05-22T19:09:05Z"
+			"revision": "aab6080f78fc45eae3fd679d00d7f1cb23afc260",
+			"revisionTime": "2017-02-22T05:48:27Z",
+			"version": "errcheck",
+			"versionExact": "errcheck"
 		},
 		{
 			"checksumSHA1": "Qws66gYHUhxTO8ddXJTdr0Wl9d8=",
@@ -679,6 +749,42 @@
 			"path": "honnef.co/go/tools/unused",
 			"revision": "e94d1c1a34c6b61d8d06c7793b8f22cd0dfcdd90",
 			"revisionTime": "2017-05-22T19:09:05Z"
+		},
+		{
+			"checksumSHA1": "RY0sZkXnDI/MxBauBD28dwuulSs=",
+			"path": "honnef.co/go/tools/version",
+			"revision": "8ed405e85c65fb38745a8eafe01ee9590523f172",
+			"revisionTime": "2018-01-10T22:45:03Z"
+		},
+		{
+			"checksumSHA1": "FlLpgONxRMWkHp8H9c461RKJMhQ=",
+			"path": "mvdan.cc/interfacer",
+			"revision": "99221a8084d79b2e7419d4a6ddd9d8c7761eae6c",
+			"revisionTime": "2018-03-01T11:25:15Z"
+		},
+		{
+			"checksumSHA1": "0+bmt/m62xZSbyATqBbp1MTy6ZI=",
+			"path": "mvdan.cc/interfacer/check",
+			"revision": "99221a8084d79b2e7419d4a6ddd9d8c7761eae6c",
+			"revisionTime": "2018-03-01T11:25:15Z"
+		},
+		{
+			"checksumSHA1": "pCQUv3qVciM9V98kVNkOw1JWKzs=",
+			"path": "mvdan.cc/lint",
+			"revision": "adc824a0674b99099789b6188a058d485eaf61c0",
+			"revisionTime": "2017-09-08T18:12:59Z"
+		},
+		{
+			"checksumSHA1": "YdOyQTzknuxmVwM0fyBipVT9m0A=",
+			"path": "mvdan.cc/unparam",
+			"revision": "d3cbfe1a7044f90f4a5a199451c5f7288e83d77b",
+			"revisionTime": "2018-03-06T01:53:13Z"
+		},
+		{
+			"checksumSHA1": "lJwq4IvPGF1JvMDubPHnktfySjM=",
+			"path": "mvdan.cc/unparam/check",
+			"revision": "d3cbfe1a7044f90f4a5a199451c5f7288e83d77b",
+			"revisionTime": "2018-03-06T01:53:13Z"
 		}
 	],
 	"rootPath": "github.com/wrouesnel/multihttp/tools"

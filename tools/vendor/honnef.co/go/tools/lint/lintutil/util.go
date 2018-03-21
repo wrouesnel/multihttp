@@ -14,9 +14,9 @@ import (
 	"go/build"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"honnef.co/go/tools/lint"
@@ -41,7 +41,8 @@ type runner struct {
 	checker lint.Checker
 	tags    []string
 	ignores []lint.Ignore
-	version int
+
+	unclean bool
 }
 
 func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err error) {
@@ -85,31 +86,6 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 	return out, nil
 }
 
-type versionFlag int
-
-func (v *versionFlag) String() string {
-	return fmt.Sprintf("1.%d", *v)
-}
-
-func (v *versionFlag) Set(s string) error {
-	if len(s) < 3 {
-		return errors.New("invalid Go version")
-	}
-	if s[0] != '1' {
-		return errors.New("invalid Go version")
-	}
-	if s[1] != '.' {
-		return errors.New("invalid Go version")
-	}
-	i, err := strconv.Atoi(s[2:])
-	*v = versionFlag(i)
-	return err
-}
-
-func (v *versionFlag) Get() interface{} {
-	return int(*v)
-}
-
 func FlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
@@ -117,72 +93,29 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("tags", "", "List of `build tags`")
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Bool("tests", true, "Include tests")
-
-	tags := build.Default.ReleaseTags
-	v := tags[len(tags)-1][2:]
-	version := new(versionFlag)
-	if err := version.Set(v); err != nil {
-		panic(fmt.Sprintf("internal error: %s", err))
-	}
-
-	flags.Var(version, "go", "Target Go `version` in the format '1.x'")
 	return flags
 }
 
-func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
+func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
-	version := fs.Lookup("go").Value.(flag.Getter).Get().(int)
 
-	ps, lprog, err := Lint(c, fs.Args(), &Options{
-		Tags:      strings.Fields(tags),
-		LintTests: tests,
-		Ignores:   ignore,
-		GoVersion: version,
-	})
+	ignores, err := parseIgnore(ignore)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	unclean := false
-	for _, p := range ps {
-		unclean = true
-		pos := lprog.Fset.Position(p.Position)
-		fmt.Printf("%v: %s\n", relativePositionString(pos), p.Text)
-	}
-	if unclean {
-		os.Exit(1)
-	}
-}
-
-type Options struct {
-	Tags      []string
-	LintTests bool
-	Ignores   string
-	GoVersion int
-}
-
-func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, *loader.Program, error) {
-	// TODO(dh): Instead of returning the loader.Program, we should
-	// store token.Position instead of token.Pos in lint.Problem.
-	if opt == nil {
-		opt = &Options{}
-	}
-	ignores, err := parseIgnore(opt.Ignores)
-	if err != nil {
-		return nil, nil, err
-	}
 	runner := &runner{
 		checker: c,
-		tags:    opt.Tags,
+		tags:    strings.Fields(tags),
 		ignores: ignores,
-		version: opt.GoVersion,
 	}
-	paths := gotool.ImportPaths(pkgs)
+	paths := gotool.ImportPaths(fs.Args())
 	goFiles, err := runner.resolveRelative(paths)
 	if err != nil {
-		return nil, nil, err
+		fmt.Fprintln(os.Stderr, err)
+		runner.unclean = true
 	}
 	ctx := build.Default
 	ctx.BuildTags = runner.tags
@@ -193,31 +126,51 @@ func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, *loader.
 	}
 	if goFiles {
 		conf.CreateFromFilenames("adhoc", paths...)
+		lprog, err := conf.Load()
+		if err != nil {
+			log.Fatal(err)
+		}
+		ps := runner.lint(lprog)
+		for _, ps := range ps {
+			for _, p := range ps {
+				runner.unclean = true
+				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
+			}
+		}
 	} else {
 		for _, path := range paths {
-			conf.ImportPkgs[path] = opt.LintTests
+			conf.ImportPkgs[path] = tests
+		}
+		lprog, err := conf.Load()
+		if err != nil {
+			log.Fatal(err)
+		}
+		ps := runner.lint(lprog)
+		for _, ps := range ps {
+			for _, p := range ps {
+				runner.unclean = true
+				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
+			}
+
 		}
 	}
-	lprog, err := conf.Load()
-	if err != nil {
-		return nil, nil, err
+	if runner.unclean {
+		os.Exit(1)
 	}
-	return runner.lint(lprog), lprog, nil
-}
-
-func shortPath(path string) string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return path
-	}
-	if rel, err := filepath.Rel(cwd, path); err == nil && len(rel) < len(path) {
-		return rel
-	}
-	return path
 }
 
 func relativePositionString(pos token.Position) string {
-	s := shortPath(pos.Filename)
+	var s string
+	pwd, err := os.Getwd()
+	if err == nil {
+		rel, err := filepath.Rel(pwd, pos.Filename)
+		if err == nil {
+			s = rel
+		}
+	}
+	if s == "" {
+		s = pos.Filename
+	}
 	if pos.IsValid() {
 		if s != "" {
 			s += ":"
@@ -234,14 +187,13 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 	flags := FlagSet(name)
 	flags.Parse(args)
 
-	ProcessFlagSet(c, flags)
+	ProcessFlagSet(name, c, flags)
 }
 
-func (runner *runner) lint(lprog *loader.Program) []lint.Problem {
+func (runner *runner) lint(lprog *loader.Program) map[string][]lint.Problem {
 	l := &lint.Linter{
-		Checker:   runner.checker,
-		Ignores:   runner.ignores,
-		GoVersion: runner.version,
+		Checker: runner.checker,
+		Ignores: runner.ignores,
 	}
 	return l.Lint(lprog)
 }
