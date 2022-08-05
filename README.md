@@ -1,6 +1,6 @@
 
 [![Build and Test](https://github.com/wrouesnel/multihttp/actions/workflows/integration.yml/badge.svg)](https://github.com/wrouesnel/multihttp/actions/workflows/integration.yml)
-[![Coverage Status](https://coveralls.io/repos/github/wrouesnel/multihttp/badge.svg?branch=master)](https://coveralls.io/github/wrouesnel/multihttp?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/wrouesnel/multihttp/badge.svg?branch=main)](https://coveralls.io/github/wrouesnel/multihttp?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/wrouesnel/multihttp)](https://goreportcard.com/report/github.com/wrouesnel/multihttp)
 
 # MultiHTTP - Easily start multiple HTTP listeners
