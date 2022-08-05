@@ -7,7 +7,8 @@ import (
 	"net/url"
 	"os"
 	"time"
-	//"fmt"
+
+	//"fmt".
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
@@ -32,7 +33,7 @@ var (
 	ErrUnknownListenScheme             = errors.New("unknown listen scheme")
 )
 
-// ListenAddressConfig is the parsed form of a multihttp address
+// ListenAddressConfig is the parsed form of a multihttp address.
 type ListenAddressConfig struct {
 	// NetworkType is the type of socket connection
 	NetworkType string
@@ -182,7 +183,7 @@ func Listen(addresses []string, handler http.Handler) ([]net.Listener, <-chan *L
 	return listeners, errCh, nil
 }
 
-// Checks if a listener is a TCP and needs a keepalive handler
+// Checks if a listener is a TCP and needs a keepalive handler.
 func maybeKeepAlive(ln net.Listener) net.Listener {
 	if o, ok := ln.(*net.TCPListener); ok {
 		return &tcpKeepAliveListener{o}
