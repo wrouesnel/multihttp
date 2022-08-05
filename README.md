@@ -5,6 +5,11 @@
 
 # MultiHTTP - Easily start multiple HTTP listeners
 
+Usage
+```
+go get github.com/wrouesnel/multihttp@v1
+```
+
 Simple library to allow easily starting multiple HTTP/HTTPS listener services.
 
 It supports both HTTP and HTTPS servers, and allows specifying different
