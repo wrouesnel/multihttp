@@ -1,4 +1,4 @@
-package multihttp
+package multihttp //nolint: typecheck
 
 import (
 	"fmt"
