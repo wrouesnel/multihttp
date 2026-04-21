@@ -136,10 +136,19 @@ func CloseAndCleanUpListeners(listeners []net.Listener) {
 	}
 }
 
-// Listen is a non-blocking function to listen on multiple http sockets. Returns
+// Listen is a non-blocking function to listen on multiple sockets. Returns
 // a list of the created listener interfaces. Even in the case of errors,
 // successfully listening interfaces are returned to allow for clean up.
 func Listen(addresses []string, handler http.Handler) ([]net.Listener, <-chan *ListenerError, error) {
+	return ListenFunc(addresses, func(listener net.Listener) error {
+		return http.Serve(listener, handler)
+	})
+}
+
+// ListenFunc is a non-blocking function to listen on multiple http sockets. Returns
+// a list of the created listener interfaces. Even in the case of errors,
+// successfully listening interfaces are returned to allow for clean up.
+func ListenFunc(addresses []string, listenFunc func(listener net.Listener) error) ([]net.Listener, <-chan *ListenerError, error) {
 	var listeners []net.Listener
 
 	// Master error channel - all errors are propagated here. Length is set to
@@ -170,14 +179,18 @@ func Listen(addresses []string, handler http.Handler) ([]net.Listener, <-chan *L
 		// Append and start serving on listener
 		listener = maybeKeepAlive(listener)
 		listeners = append(listeners, listener)
-		go func(listener net.Listener) {
-			err := http.Serve(listener, handler)
-			// Return the listener and the error it returned.
-			errCh <- &ListenerError{
-				Listener: listener,
-				Error:    err,
-			}
-		}(listener)
+
+		// Allow specifying a nil handler if the user just wants the listeners.
+		if listenFunc != nil {
+			go func(listener net.Listener) {
+				err := listenFunc(listener)
+				// Return the listener and the error it returned.
+				errCh <- &ListenerError{
+					Listener: listener,
+					Error:    err,
+				}
+			}(listener)
+		}
 	}
 
 	return listeners, errCh, nil
