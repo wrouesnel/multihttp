@@ -2,6 +2,7 @@ package multihttp //nolint:typecheck
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,7 +47,15 @@ type ListenAddressConfig struct {
 // ListenerError maps a listener to it's error channel.
 type ListenerError struct {
 	Listener net.Listener
-	Error    error
+	Err      error
+}
+
+func (e ListenerError) Unwrap() error {
+	return e.Err
+}
+
+func (e ListenerError) Error() string {
+	return fmt.Sprintf("listener %s: %s", e.Listener.Addr().String(), e.Err.Error())
 }
 
 func getNetworkTypeAndAddressFromURL(u *url.URL) (string, string) {
@@ -187,7 +196,7 @@ func ListenFunc(addresses []string, listenFunc func(listener net.Listener) error
 				// Return the listener and the error it returned.
 				errCh <- &ListenerError{
 					Listener: listener,
-					Error:    err,
+					Err:      err,
 				}
 			}(listener)
 		}
