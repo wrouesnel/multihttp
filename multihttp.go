@@ -193,10 +193,12 @@ func ListenFunc(addresses []string, listenFunc func(listener net.Listener) error
 		if listenFunc != nil {
 			go func(listener net.Listener) {
 				err := listenFunc(listener)
-				// Return the listener and the error it returned.
-				errCh <- &ListenerError{
-					Listener: listener,
-					Err:      err,
+				if err != nil {
+					// Return the listener and the error it returned.
+					errCh <- &ListenerError{
+						Listener: listener,
+						Err:      err,
+					}
 				}
 			}(listener)
 		}
