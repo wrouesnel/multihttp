@@ -25,3 +25,22 @@ Servers are started by specifying addresses with URL-like schemas:
 With TLS client authentication:
 
 * `tcps://0.0.0.0:443?tlscert=/path/to/file/in/pem/format.crt&tlskey=/path/to/file/in/pem/format.pem&tlsclientca=/path/to/cert`
+
+## Configuration
+
+### Supported Schemes
+
+* `tcp` - unencrypted TCP listener
+* `tcps` - TLS TCP listener
+* `unix` - unencrypted unix listener
+* `unixs` - TLS UNIX socket listener (useful when doing SNI redirect with a server like _nginx_ or _haproxy_)
+
+## URI configuration arguments
+
+| Name                    | Description                                                                                                                                                                                                                                                                                        | Default |
+|-------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----|
+| `tlscert`               | Path to the TLS certificate for a TLS listener type                                                                                                                                                                                                                                                |  |   
+| `tlskey`                | Path to the TLS key for a TLS listener type                                                                                                                                                                                                                                                        |     |
+| `tlsclientca`           | Path to the TLS client CA certificate for global authentication. <br/><br/>May contain multiple certificates - all will be accepted.<br/><br/>This is watched file on disk and will be reloaded when changed.<br/><br/>While the file must exist to not be a configuration error, it may be empty. |     |
+| `tlsclientcadir`        | Path to a directory of client CA certificates for global authentication.<br/><br/>The directory on disk will be watched and reloaded when changed.<br/>Client CA dirs are inherently optional - an empty dir however will not allow any clients to connect.                                        |         |
+| `tlsclientcertrequest`  | Boolean which forces a TLS client to request an optional client CA, making it available on the listener.                                                                                                                                                                                           |         |
