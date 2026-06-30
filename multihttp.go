@@ -1,3 +1,4 @@
+//go:generate go tool go-enum --marshal --names --values
 package multihttp //nolint:typecheck
 
 import (
@@ -12,19 +13,29 @@ import (
 	//"fmt".
 	"crypto/x509"
 	"errors"
-	"io/ioutil"
 
 	"github.com/hashicorp/errwrap"
 )
 
 const (
-	certParam   string = "tlscert"
-	keyParam    string = "tlskey"
-	caCertParam string = "tlsclientca"
+	certParam       string = "tlscert"
+	keyParam        string = "tlskey"
+	caCertParam     string = "tlsclientca"
+	clientCertParam string = "tlsclientcert"
 
 	networkUnix string = "unix"
 	networkTCP  string = "tcp"
 )
+
+// ClientCertParam sets the disposition of the listener towards client certificates
+// ENUM(
+// none,  // Do not request a client certificate
+// request,  // Request a client certificate but do not verify
+// require, // Require a client certificate to be sent but do not verify
+// verifyifgiven,  // Verify any client certificate which is sent
+// requireandverify,  // Require a valid client certificate
+// )
+type ClientCertParam string
 
 // nolint: golint
 var (
@@ -32,6 +43,7 @@ var (
 	ErrErrorMissingTLSParameters       = errors.New("TLS modes require tlscert and tlskey params")
 	ErrErrorLoadingClientCACertificate = errors.New("error loading client CA certificate")
 	ErrUnknownListenScheme             = errors.New("unknown listen scheme")
+	ErrBadParameters                   = errors.New("an invalid parameter was specified")
 )
 
 // ListenAddressConfig is the parsed form of a multihttp address.
@@ -109,11 +121,11 @@ func ParseAddress(address string) (ListenAddressConfig, error) {
 		}
 
 		// Optional: client verification path
-		if caCertPath := queryParams.Get(caCertParam); caCertPath != "" {
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		caCertPath := queryParams.Get(caCertParam)
+		if caCertPath != "" {
 
 			// Require acceptable clientCAs to be explicitly specified.
-			caCerts, caerr := ioutil.ReadFile(caCertPath)
+			caCerts, caerr := os.ReadFile(caCertPath)
 			if caerr != nil {
 				return retAddr, errwrap.Wrap(ErrErrorLoadingClientCACertificate, caerr)
 			}
@@ -123,6 +135,32 @@ func ParseAddress(address string) (ListenAddressConfig, error) {
 
 			tlsConfig.ClientCAs = caCertPool
 		}
+
+		// Select type of client certificate handlling
+		clientCertHandling := queryParams.Get(clientCertParam)
+		if clientCertHandling == "" {
+			if caCertPath != "" {
+				clientCertHandling = string(ClientCertParamRequireandverify)
+			} else {
+				clientCertHandling = string(ClientCertParamNone)
+			}
+		}
+		switch ClientCertParam(clientCertHandling) {
+		case ClientCertParamNone:
+		case ClientCertParamRequest:
+			tlsConfig.ClientAuth = tls.RequestClientCert
+		case ClientCertParamRequire:
+			tlsConfig.ClientAuth = tls.RequireAnyClientCert
+		case ClientCertParamVerifyifgiven:
+			tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
+		case ClientCertParamRequireandverify:
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		default:
+			return retAddr, errwrap.Wrap(ErrBadParameters, fmt.Errorf("%v=%v is invalid", clientCertParam, clientCertHandling))
+		}
+
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
 		retAddr.TLSConfig = tlsConfig
 	default:
 		return retAddr, ErrUnknownListenScheme
@@ -236,30 +274,3 @@ func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	}
 	return tc, nil
 }
-
-// Returns a dialer which ignores the address string and connects to the
-// given socket always.
-//func newDialer(addr string) (func (proto, addr string) (conn net.Conn, err error), error) {
-//	realProtocol, realAddress, err := ParseAddress(addr)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return func (proto, addr string) (conn net.Conn, err error) {
-//		return net.Dial(realProtocol, realAddress)
-//	}, nil
-//}
-//
-//// Initialize an HTTP client which connects to the provided socket address to
-//// service requests. The hostname in requests is parsed as a header only.
-//func NewClient(addr string) (*http.Client, error) {
-//	dialer, err := newDialer(addr)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	tr := &http.Transport{ Dial: dialer, }
-//	client := &http.Client{Transport: tr}
-//
-//	return client, nil
-//}
