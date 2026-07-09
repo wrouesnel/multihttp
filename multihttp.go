@@ -156,10 +156,11 @@ func ParseAddress(address string) (ListenAddressConfig, error) {
 		case ClientCertParamRequireandverify:
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		default:
-			return retAddr, errwrap.Wrap(ErrBadParameters, fmt.Errorf("%v=%v is invalid", clientCertParam, clientCertHandling))
+			return retAddr, errwrap.Wrap(
+				ErrBadParameters,
+				fmt.Errorf("%v=%v is invalid", clientCertParam, clientCertHandling),
+			)
 		}
-
-		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 		retAddr.TLSConfig = tlsConfig
 	default:
@@ -186,7 +187,10 @@ func CloseAndCleanUpListeners(listeners []net.Listener) {
 // Listen is a non-blocking function to listen on multiple sockets. Returns
 // a list of the created listener interfaces. Even in the case of errors,
 // successfully listening interfaces are returned to allow for clean up.
-func Listen(addresses []string, handler http.Handler) ([]net.Listener, <-chan *ListenerError, error) {
+func Listen(
+	addresses []string,
+	handler http.Handler,
+) ([]net.Listener, <-chan *ListenerError, error) {
 	return ListenFunc(addresses, func(listener net.Listener) error {
 		return http.Serve(listener, handler)
 	})
@@ -195,7 +199,10 @@ func Listen(addresses []string, handler http.Handler) ([]net.Listener, <-chan *L
 // ListenFunc is a non-blocking function to listen on multiple http sockets. Returns
 // a list of the created listener interfaces. Even in the case of errors,
 // successfully listening interfaces are returned to allow for clean up.
-func ListenFunc(addresses []string, listenFunc func(listener net.Listener) error) ([]net.Listener, <-chan *ListenerError, error) {
+func ListenFunc(
+	addresses []string,
+	listenFunc func(listener net.Listener) error,
+) ([]net.Listener, <-chan *ListenerError, error) {
 	var listeners []net.Listener
 
 	// Master error channel - all errors are propagated here. Length is set to

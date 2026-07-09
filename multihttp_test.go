@@ -1,7 +1,6 @@
 package multihttp //nolint: typecheck
 
 import (
-	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -223,21 +222,8 @@ func (s *MultiHTTPSuite) TestListenTCPSWithClientCADefault(c *C) {
 		s.clientCARootPath,
 	)
 
-	listeners, _, err := Listen([]string{testAddr}, http.NewServeMux())
+	listeners, _, err := Listen([]string{testAddr}, http.HandlerFunc(httpEcho))
 	c.Assert(err, IsNil)
-
-	servers := []*http.Server{}
-	for _, listener := range listeners {
-		listenerHost, _, _ := net.SplitHostPort(listener.Addr().String())
-		c.Assert(listenerHost, Equals, "127.0.0.1")
-		servers = append(servers, httpEcho(listener))
-	}
-
-	defer func() {
-		for _, s := range servers {
-			go s.Shutdown(context.Background())
-		}
-	}()
 
 	// Send an unauthenticated request to the server
 	client := resty.New()
@@ -253,9 +239,6 @@ func (s *MultiHTTPSuite) TestListenTCPSWithClientCADefault(c *C) {
 		c.Assert(err, Not(IsNil))
 		urlErr, _ := errors.AsType[*url.Error](err)
 		c.Assert(urlErr.Err.Error(), Equals, "remote error: tls: certificate required")
-
-		//c.Assert(err, IsNil, Commentf("could not make request to test server: %v", lis))
-		//c.Assert(res.String(), Equals, "OK\n")
 	}
 
 	// Add the client certificates
@@ -273,19 +256,99 @@ func (s *MultiHTTPSuite) TestListenTCPSWithClientCADefault(c *C) {
 	CloseAndCleanUpListeners(listeners)
 }
 
-// httpEcho attaches a simple responder to a listener for testing purposes
-func httpEcho(listener net.Listener) *http.Server {
-	server := &http.Server{
-		Addr: listener.Addr().String(),
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("OK\n"))
-		}),
+// TestListenTCPSWithOptionalClientCA starts a TLS listener requesting a client certificate
+// but not validating anything.
+func (s *MultiHTTPSuite) TestListenTCPSWithOptionalClientCert(c *C) {
+	testSocketPath := "127.0.0.1:0"
+
+	testAddr := fmt.Sprintf(
+		"tcps://%s/?tlscert=%s&tlskey=%s&tlsclientcert=request",
+		testSocketPath,
+		s.serverCertPath,
+		s.serverKeyPath,
+	)
+
+	listeners, _, err := Listen([]string{testAddr}, http.HandlerFunc(httpEcho))
+	c.Assert(err, IsNil)
+
+	// Send an unauthenticated request to the server
+	client := resty.New()
+	client.SetRootCertificates(s.serverCertPath)
+
+	// Test that requests are accepted without a client cert
+	defer client.Close()
+	for _, listener := range listeners {
+		testURL := fmt.Sprintf("https://%s", listener.Addr().String())
+		res, err := client.R().
+			SetTimeout(time.Second).
+			Get(testURL)
+		c.Assert(err, IsNil, Commentf("request without client cert failed: %v", testURL))
+		c.Assert(res.String(), Equals, "OK")
 	}
-	go func() {
-		server.Serve(listener)
-	}()
-	return server
+
+	// Test that requests are accepted with a client cert
+	client.SetCertificateFromFile(s.clientCertPath, s.clientKeyPath)
+	for _, listener := range listeners {
+		testURL := fmt.Sprintf("https://%s", listener.Addr().String())
+		res, err := client.R().
+			SetTimeout(time.Second).
+			Get(testURL)
+		c.Assert(err, IsNil, Commentf("request with client cert failed: %v", testURL))
+		c.Assert(res.String(), Equals, "OK")
+	}
+
+	CloseAndCleanUpListeners(listeners)
+}
+
+// TestListenTCPSWithOptionalClientCA starts a TLS listener requesting a client certificate
+// but not validating anything.
+func (s *MultiHTTPSuite) TestListenTCPSWithRequiredClientCert(c *C) {
+	testSocketPath := "127.0.0.1:0"
+
+	testAddr := fmt.Sprintf(
+		"tcps://%s/?tlscert=%s&tlskey=%s&tlsclientcert=require",
+		testSocketPath,
+		s.serverCertPath,
+		s.serverKeyPath,
+	)
+
+	listeners, _, err := Listen([]string{testAddr}, http.HandlerFunc(httpEcho))
+	c.Assert(err, IsNil)
+
+	// Send an unauthenticated request to the server
+	client := resty.New()
+	client.SetRootCertificates(s.serverCertPath)
+
+	// Test that requests are accepted without a client cert
+	defer client.Close()
+	for _, listener := range listeners {
+		testURL := fmt.Sprintf("https://%s", listener.Addr().String())
+		_, err := client.R().
+			SetTimeout(time.Second).
+			Get(testURL)
+		c.Assert(err, Not(IsNil))
+		urlErr, _ := errors.AsType[*url.Error](err)
+		c.Assert(urlErr.Err.Error(), Equals, "remote error: tls: certificate required")
+	}
+
+	// Test that requests are accepted with a client cert
+	client.SetCertificateFromFile(s.clientCertPath, s.clientKeyPath)
+	for _, listener := range listeners {
+		testURL := fmt.Sprintf("https://%s", listener.Addr().String())
+		res, err := client.R().
+			SetTimeout(time.Second).
+			Get(testURL)
+		c.Assert(err, IsNil, Commentf("request with client cert failed: %v", testURL))
+		c.Assert(res.String(), Equals, "OK")
+	}
+
+	CloseAndCleanUpListeners(listeners)
+}
+
+// Simple handler for testing purposes
+func httpEcho(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK\n"))
 }
 
 // generateTestCA invents a test CA
