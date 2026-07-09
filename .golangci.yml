@@ -1,75 +1,221 @@
+version: "2"
+
 run:
-  build-tags:
-    - mage
+  #  build-tags:
+  #    - mage
+  go: '1.26'
 
-linters-settings:
-  varnamelen:
-    # The longest distance, in source lines, that is being considered a "small scope." (defaults to 5)
-    # Variables used in at most this many lines will be ignored.
-    max-distance: 5
-    # The minimum length of a variable's name that is considered "long." (defaults to 3)
-    # Variable names that are at least this long will be ignored.
-    min-name-length: 3
-    # Check method receivers. (defaults to false)
-    check-receiver: false
-    # Check named return values. (defaults to false)
-    check-return: false
-    # Check type parameters. (defaults to false)
-    check-type-param: false
-    # Ignore "ok" variables that hold the bool return value of a type assertion. (defaults to false)
-    ignore-type-assert-ok: false
-    # Ignore "ok" variables that hold the bool return value of a map index. (defaults to false)
-    ignore-map-index-ok: false
-    # Ignore "ok" variables that hold the bool return value of a channel receive. (defaults to false)
-    ignore-chan-recv-ok: false
-    # Optional list of variable names that should be ignored completely. (defaults to empty list)
-    ignore-names:
-      - err
-      - ch # common channel var
-      - l # common log var
-      - v
-      - c
-      - ip
-    # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
-    # Entries must be in one of the following forms (see below for examples):
-    # - for variables, parameters, named return values, method receivers, or type parameters:
-    #   <name> <type>  (<type> can also be a pointer/slice/map/chan/...)
-    # - for constants: const <name>
-    ignore-decls:
-      - s string
-      - w http.ResponseWriter
+output:
+  formats:
+    text:
+      # Output path can be either `stdout`, `stderr` or path to the file to write to.
+      # Default: stdout
+      path: stdout
+      # Print linter name in the end of issue text.
+      # Default: true
+      print-linter-name: true
+      # Print lines of code with issue.
+      # Default: true
+      print-issued-lines: true
+      # Use colors.
+      # Default: true
+      colors: true
+    junit-xml:
+      path: .junit/linters.xml
+      extended: true
 
-  tagliatelle:
-    # Check the struck tag name case.
-    case:
-      # Use the struct field name to check the name of the struct tag.
-      # Default: false
-      use-field-name: true
-      rules:
-        # Any struct tag type can be used.
-        # Support string case: `camel`, `pascal`, `kebab`, `snake`, `goCamel`, `goPascal`, `goKebab`, `goSnake`, `upper`, `lower`
-        json: snake
-        yaml: snake
-        xml: snake
+formatters:
+  enable:
+    #- gci
+    - gofmt
+    # Both of these never seem satisfied
+    #- gofumpt
+    # - goimports
+    - golines
+    #- swaggo
 
-  exhaustruct:
-    # List of regular expressions to match struct packages and names.
-    # If this list is empty, all structs are tested.
-    # Default: []
-    include: []
-    # List of regular expressions to exclude struct packages and names from check.
-    # Default: []
-    exclude:
-      - 'net\.IPAddr$'
-      - 'promhttp\.HandlerOpts$'
-      - 'x509\.VerifyOptions$'
-      - 'http\.Transport$'
-      - 'http\.Request$'
-      - 'http\.Client$'
-      - 'net\.Dialer$'
-      - 'http\.Server$'
-      - 'tls\.Config$'
+linters:
+  default: all
+  disable:
+    - funlen
+    - gochecknoinits
+    - gochecknoglobals
 
-  gocritic:
-    disabled-checks:
-      - commentFormatting
+    - wrapcheck # too much effort for this
+    - varnamelen
+    - godoclint
+    - goconst
+    # Disable cyclomatic complexity checkers - they're mostly not useful.
+    - gocyclo
+    - gocognit
+    - cyclop
+    - maintidx
+    ###
+    - errname # not following this one
+    - testpackage # TODO: consider later
+    - noinlineerr # TODO: consider later
+    - nestif # TODO: consider later
+    - musttag # TODO: consider later
+    - tagalign # TODO: not fixing right now
+    - recvcheck # doesn't like enum tool
+    - nonamedreturns # we're okay with namedreturns
+    - staticcheck # TODO: follow up later
+    - depguard # TODO: doesn't follow spec - denys everything
+    - err113 # TODO: consider a centralized error handling scheme
+    # Deliberately disabled
+    - godot # This one is just infuriating, produces a lot of warnings, and doesn't matter.
+    - godox # noisy and counterproductive
+    - revive # makes a lot of less then helpful suggestions
+    - paralleltest # does not cooperate with gocheck
+    - nlreturn # rejected for style reasons
+    - lll # usually not helpful
+    - exhaustruct # noisy for most of the code here
+    - wsl_v5 # not following
+    - embeddedstructfieldcheck # notfollowing
+    # Deprecated
+    - ireturn
+    - gomodguard
+    - wsl
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - funlen
+          - varnamelen
+          - errcheck
+          - gosec
+      - path: magefile.go
+        linters:
+          - unparam
+
+  settings:
+    mnd:
+      ignored-numbers:
+        - '0666'
+        - '0755'
+        - '0o700'
+        - '42'
+
+    varnamelen:
+      # The longest distance, in source lines, that is being considered a "small scope." (defaults to 5)
+      # Variables used in at most this many lines will be ignored.
+      max-distance: 5
+      # The minimum length of a variable's name that is considered "long." (defaults to 3)
+      # Variable names that are at least this long will be ignored.
+      min-name-length: 3
+      # Check method receivers. (defaults to false)
+      check-receiver: false
+      # Check named return values. (defaults to false)
+      check-return: false
+      # Check type parameters. (defaults to false)
+      check-type-param: false
+      # Ignore "ok" variables that hold the bool return value of a type assertion. (defaults to false)
+      ignore-type-assert-ok: false
+      # Ignore "ok" variables that hold the bool return value of a map index. (defaults to false)
+      ignore-map-index-ok: false
+      # Ignore "ok" variables that hold the bool return value of a channel receive. (defaults to false)
+      ignore-chan-recv-ok: false
+      # Optional list of variable names that should be ignored completely. (defaults to empty list)
+      ignore-names:
+        - err
+        - ch # scraperlib channel var
+        - l # scraperlib log var
+        - k
+        - v
+        - c
+        - ip
+        - f # function
+        - fn
+        - st
+        - e
+        - in
+        - wr
+        - rd
+        - b
+        - p # used for paths
+      # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
+      # Entries must be in one of the following forms (see below for examples):
+      # - for variables, parameters, named return values, method receivers, or type parameters:
+      #   <name> <type>  (<type> can also be a pointer/slice/map/chan/...)
+      # - for constants: const <name>
+      ignore-decls:
+        - s string
+        - w http.ResponseWriter
+        - r *http.Request
+
+    errcheck:
+      exclude-functions:
+        - io/ioutil.ReadFile
+        - io.Copy(*bytes.Buffer)
+        - io.Copy(os.Stdout)
+        - io.Copy(io.Writer)
+        - (io/fs.File).Close
+
+    tagliatelle:
+      # Check the struck tag name case.
+      case:
+        # Use the struct field name to check the name of the struct tag.
+        # Default: false
+        use-field-name: true
+        rules:
+          # Any struct tag type can be used.
+          # Support string case: `camel`, `pascal`, `kebab`, `snake`, `goCamel`, `goPascal`, `goKebab`, `goSnake`, `upper`, `lower`
+          json: snake
+          yaml: snake
+          xml: snake
+
+    exhaustruct:
+      # List of regular expressions to match struct packages and names.
+      # If this list is empty, all structs are tested.
+      # Default: []
+      include: []
+      # List of regular expressions to exclude struct packages and names from check.
+      # Default: []
+      exclude:
+        - 'net\.IPAddr$'
+        - 'promhttp\.HandlerOpts$'
+        - 'x509\.VerifyOptions$'
+        - 'http\.Transport$'
+        - 'http\.Request$'
+        - 'http\.Client$'
+        - 'net\.Dialer$'
+        - 'http\.Server$'
+        - 'tls\.Config$'
+        - 'gorm\.*'
+        - 'clause\.*'
+
+    gocritic:
+      disabled-checks:
+        - commentFormatting
+
+    wrapcheck:
+      extra-ignore-sigs:
+        - func \(github\.com/labstack/echo/v4\.Context\)
+
+    perfsprint:
+      # String concatenation frequently makes code harder to read.
+      strconcat: false
+
+    whitespace:
+      multi-func: true
+
+    unqueryvet:
+      # Allow select *
+      allowed-patterns:
+        - "SELECT \\* FROM .*"
+
+    gosec:
+      excludes:
+        - G304
+        - G110
+
+severity:
+  default: error
+  rules:
+    - linters:
+        - godox
+        - funlen
+        - nolintlint
+      severity: info
